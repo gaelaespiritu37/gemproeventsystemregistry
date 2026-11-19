@@ -1,0 +1,282 @@
+{
+  "entities": {
+    "Event": {
+      "title": "Event",
+      "description": "A Christmas party or organizational event managed by an organizer.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Display name of the event.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "eventDate": {
+          "type": "string",
+          "description": "Date label of the event (e.g., 2026-12-18).",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "venue": {
+          "type": "string",
+          "description": "Venue or location name.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the organizer who owns the event.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "kioskCode": {
+          "type": "string",
+          "description": "Shared event QR pass token required for employee self-registration.",
+          "minLength": 4,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "kioskEnabled": {
+          "type": "boolean",
+          "description": "Whether the single shared Event QR code is actively accepting check-ins."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the event was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the event was last updated."
+        }
+      },
+      "required": [
+        "title",
+        "eventDate",
+        "venue",
+        "ownerId",
+        "kioskCode",
+        "kioskEnabled",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PublicEvent": {
+      "title": "PublicEvent",
+      "description": "Public-safe event metadata displayed to employees scanning the single shared Event QR code.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Display name of the event.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "eventDate": {
+          "type": "string",
+          "description": "Date label of the event.",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "venue": {
+          "type": "string",
+          "description": "Venue or location name.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the event organizer.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "kioskEnabled": {
+          "type": "boolean",
+          "description": "Whether self-check-in is currently open."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when published."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when updated."
+        }
+      },
+      "required": [
+        "title",
+        "eventDate",
+        "venue",
+        "ownerId",
+        "kioskEnabled",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Attendee": {
+      "title": "Attendee",
+      "description": "An employee record in the event roster with check-in status and headcount quantity.",
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "description": "Parent event document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the event organizer.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "employeeNo": {
+          "type": "string",
+          "description": "Unique employee number.",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[a-zA-Z0-9_\\-\\.]+$"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Employee full name.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "department": {
+          "type": "string",
+          "description": "Department or team name.",
+          "minLength": 0,
+          "maxLength": 80
+        },
+        "status": {
+          "type": "string",
+          "description": "Attendance status of the employee.",
+          "enum": ["present", "absent"]
+        },
+        "quantity": {
+          "type": "integer",
+          "description": "Headcount or pass quantity associated with this employee registration (1 to 50)."
+        },
+        "checkedInAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when checked in, or null if absent."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the roster entry was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the roster entry was last updated."
+        }
+      },
+      "required": [
+        "eventId",
+        "ownerId",
+        "employeeNo",
+        "fullName",
+        "department",
+        "status",
+        "quantity",
+        "checkedInAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SelfCheckIn": {
+      "title": "SelfCheckIn",
+      "description": "Immutable check-in submission created by an employee scanning the single shared Event QR code.",
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "description": "Target event ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Organizer UID matching the target event.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "kioskCode": {
+          "type": "string",
+          "description": "Event QR pass token embedded in the single shared QR URL.",
+          "minLength": 4,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "employeeNo": {
+          "type": "string",
+          "description": "Employee number entered by the attendee.",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[a-zA-Z0-9_\\-\\.]+$"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Employee full name.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "department": {
+          "type": "string",
+          "description": "Employee department.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "quantity": {
+          "type": "integer",
+          "description": "Party / pass quantity (1 to 50)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of check-in submission."
+        }
+      },
+      "required": [
+        "eventId",
+        "ownerId",
+        "kioskCode",
+        "employeeNo",
+        "fullName",
+        "department",
+        "quantity",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/events/{eventId}": {
+      "schema": { "$ref": "#/entities/Event" },
+      "description": "Private event documents owned by an organizer (contains kioskCode)."
+    },
+    "/publicEvents/{eventId}": {
+      "schema": { "$ref": "#/entities/PublicEvent" },
+      "description": "Public-safe event header readable by direct ID when an employee scans the single Event QR code."
+    },
+    "/events/{eventId}/attendees/{attendeeId}": {
+      "schema": { "$ref": "#/entities/Attendee" },
+      "description": "Employee attendees belonging to an event, keyed by sanitized employee number."
+    },
+    "/events/{eventId}/selfCheckins/{checkinId}": {
+      "schema": { "$ref": "#/entities/SelfCheckIn" },
+      "description": "Append-only self-check-in receipts submitted via the single Event QR code."
+    }
+  }
+}

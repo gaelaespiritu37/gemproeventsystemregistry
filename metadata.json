@@ -1,0 +1,10 @@
+{
+  "name": "NoelCheck — Christmas Party QR Registration",
+  "description": "Fast QR code and Employee No. event check-in, present/absent roster tracking, and headcount quantity management for Christmas parties.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

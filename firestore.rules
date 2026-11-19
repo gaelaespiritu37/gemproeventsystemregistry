@@ -1,0 +1,300 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Deny all access by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Global Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    // --- Validation Blueprints ---
+    function isValidEvent(data) {
+      return data.keys().hasAll(['title', 'eventDate', 'venue', 'ownerId', 'kioskCode', 'kioskEnabled', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'eventDate', 'venue', 'ownerId', 'kioskCode', 'kioskEnabled', 'createdAt', 'updatedAt'])
+        && data.ownerId is string
+        && data.ownerId == request.auth.uid
+        && isValidId(data.ownerId)
+        && data.title is string
+        && data.title.size() >= 1
+        && data.title.size() <= 120
+        && data.eventDate is string
+        && data.eventDate.size() >= 1
+        && data.eventDate.size() <= 40
+        && data.venue is string
+        && data.venue.size() >= 1
+        && data.venue.size() <= 120
+        && data.kioskCode is string
+        && data.kioskCode.size() >= 4
+        && data.kioskCode.size() <= 32
+        && data.kioskCode.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.kioskEnabled is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPublicEvent(data) {
+      return data.keys().hasAll(['title', 'eventDate', 'venue', 'ownerId', 'kioskEnabled', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'eventDate', 'venue', 'ownerId', 'kioskEnabled', 'createdAt', 'updatedAt'])
+        && data.ownerId is string
+        && data.ownerId == request.auth.uid
+        && isValidId(data.ownerId)
+        && data.title is string
+        && data.title.size() >= 1
+        && data.title.size() <= 120
+        && data.eventDate is string
+        && data.eventDate.size() >= 1
+        && data.eventDate.size() <= 40
+        && data.venue is string
+        && data.venue.size() >= 1
+        && data.venue.size() <= 120
+        && data.kioskEnabled is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAttendee(data, eventId) {
+      return data.keys().hasAll([
+          'eventId', 'ownerId', 'employeeNo', 'fullName',
+          'department', 'status', 'quantity', 'checkedInAt',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'eventId', 'ownerId', 'employeeNo', 'fullName',
+          'department', 'status', 'quantity', 'checkedInAt',
+          'createdAt', 'updatedAt'
+        ])
+        && data.eventId is string
+        && data.eventId == eventId
+        && isValidId(data.eventId)
+        && data.ownerId is string
+        && data.ownerId == request.auth.uid
+        && isValidId(data.ownerId)
+        && data.employeeNo is string
+        && data.employeeNo.size() >= 1
+        && data.employeeNo.size() <= 40
+        && data.employeeNo.matches('^[a-zA-Z0-9_\\-\\.]+$')
+        && data.fullName is string
+        && data.fullName.size() >= 1
+        && data.fullName.size() <= 100
+        && data.department is string
+        && data.department.size() <= 80
+        && data.status in ['present', 'absent']
+        && data.quantity is int
+        && data.quantity >= 1
+        && data.quantity <= 50
+        && (data.checkedInAt == null || data.checkedInAt is timestamp)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSelfCheckIn(data, eventId) {
+      return data.keys().hasAll([
+          'eventId', 'ownerId', 'kioskCode', 'employeeNo',
+          'fullName', 'department', 'quantity', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'eventId', 'ownerId', 'kioskCode', 'employeeNo',
+          'fullName', 'department', 'quantity', 'createdAt'
+        ])
+        && data.eventId is string
+        && data.eventId == eventId
+        && isValidId(data.eventId)
+        && data.ownerId is string
+        && isValidId(data.ownerId)
+        && data.kioskCode is string
+        && data.kioskCode.size() >= 4
+        && data.kioskCode.size() <= 32
+        && data.kioskCode.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.employeeNo is string
+        && data.employeeNo.size() >= 1
+        && data.employeeNo.size() <= 40
+        && data.employeeNo.matches('^[a-zA-Z0-9_\\-\\.]+$')
+        && data.fullName is string
+        && data.fullName.size() >= 1
+        && data.fullName.size() <= 100
+        && data.department is string
+        && data.department.size() >= 1
+        && data.department.size() <= 80
+        && data.quantity is int
+        && data.quantity >= 1
+        && data.quantity <= 50
+        && data.createdAt is timestamp;
+    }
+
+    function isEventOwner(eventId) {
+      return exists(/databases/$(database)/documents/events/$(eventId))
+        && get(/databases/$(database)/documents/events/$(eventId)).data.ownerId == request.auth.uid;
+    }
+
+    function matchesActiveEventKiosk(eventId, data) {
+      return exists(/databases/$(database)/documents/events/$(eventId))
+        && get(/databases/$(database)/documents/events/$(eventId)).data.kioskEnabled == true
+        && get(/databases/$(database)/documents/events/$(eventId)).data.kioskCode == data.kioskCode
+        && get(/databases/$(database)/documents/events/$(eventId)).data.ownerId == data.ownerId;
+    }
+
+    // --- Collection Rules ---
+    match /publicEvents/{eventId} {
+      allow get: if isValidId(eventId);
+      allow list: if false;
+
+      allow create: if isSignedIn()
+        && isValidId(eventId)
+        && isValidPublicEvent(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isEventOwner(eventId);
+
+      allow update: if isSignedIn()
+        && isValidId(eventId)
+        && isValidPublicEvent(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'eventDate', 'venue', 'kioskEnabled', 'updatedAt']);
+
+      allow delete: if isSignedIn()
+        && isValidId(eventId)
+        && existing().ownerId == request.auth.uid;
+    }
+
+    match /events/{eventId} {
+      allow get: if isSignedIn()
+        && isValidId(eventId)
+        && existing().ownerId == request.auth.uid;
+
+      allow list: if isSignedIn()
+        && existing().ownerId == request.auth.uid;
+
+      allow create: if isSignedIn()
+        && isValidId(eventId)
+        && isValidEvent(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn()
+        && isValidId(eventId)
+        && isValidEvent(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'eventDate', 'venue', 'kioskCode', 'kioskEnabled', 'updatedAt']);
+
+      allow delete: if isSignedIn()
+        && isValidId(eventId)
+        && existing().ownerId == request.auth.uid;
+
+      match /attendees/{attendeeId} {
+        allow get: if isSignedIn()
+          && isValidId(eventId)
+          && isValidId(attendeeId)
+          && existing().ownerId == request.auth.uid
+          && isEventOwner(eventId);
+
+        allow list: if isSignedIn()
+          && existing().ownerId == request.auth.uid;
+
+        allow create: if isSignedIn()
+          && isValidId(eventId)
+          && isValidId(attendeeId)
+          && isValidAttendee(incoming(), eventId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && ((incoming().status == 'absent' && incoming().checkedInAt == null)
+              || (incoming().status == 'present' && incoming().checkedInAt == request.time))
+          && isEventOwner(eventId);
+
+        allow update: if isSignedIn()
+          && isValidId(eventId)
+          && isValidId(attendeeId)
+          && isValidAttendee(incoming(), eventId)
+          && existing().ownerId == request.auth.uid
+          && incoming().ownerId == existing().ownerId
+          && incoming().eventId == existing().eventId
+          && incoming().employeeNo == existing().employeeNo
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && isEventOwner(eventId)
+          && (
+            (
+              incoming().status == 'present'
+              && incoming().checkedInAt == request.time
+              && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'quantity', 'checkedInAt', 'updatedAt'])
+            )
+            ||
+            (
+              incoming().status == 'absent'
+              && incoming().checkedInAt == null
+              && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'checkedInAt', 'updatedAt'])
+            )
+            ||
+            (
+              incoming().status == existing().status
+              && incoming().checkedInAt == existing().checkedInAt
+              && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'department', 'quantity', 'updatedAt'])
+            )
+            ||
+            (
+              (
+                (incoming().status == 'present' && (existing().status == 'absent' ? incoming().checkedInAt == request.time : incoming().checkedInAt == existing().checkedInAt))
+                ||
+                (incoming().status == 'absent' && incoming().checkedInAt == null)
+              )
+              && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'department', 'status', 'quantity', 'checkedInAt', 'updatedAt'])
+            )
+          );
+
+        allow delete: if isSignedIn()
+          && isValidId(eventId)
+          && isValidId(attendeeId)
+          && existing().ownerId == request.auth.uid
+          && isEventOwner(eventId);
+      }
+
+      match /selfCheckins/{checkinId} {
+        allow get: if isSignedIn()
+          && isValidId(eventId)
+          && isValidId(checkinId)
+          && existing().ownerId == request.auth.uid
+          && isEventOwner(eventId);
+
+        allow list: if isSignedIn()
+          && existing().ownerId == request.auth.uid;
+
+        allow create: if isValidId(eventId)
+          && isValidId(checkinId)
+          && isValidSelfCheckIn(incoming(), eventId)
+          && incoming().createdAt == request.time
+          && matchesActiveEventKiosk(eventId, incoming());
+
+        allow update: if false;
+
+        allow delete: if isSignedIn()
+          && isValidId(eventId)
+          && isValidId(checkinId)
+          && existing().ownerId == request.auth.uid
+          && isEventOwner(eventId);
+      }
+    }
+  }
+}
